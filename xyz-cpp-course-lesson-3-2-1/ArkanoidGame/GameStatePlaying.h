@@ -1,10 +1,10 @@
 #pragma once
 #include "SFML/Graphics.hpp"
 #include "SFML/Audio.hpp"
-#include "Platform.h"
-#include "Ball.h"
+#include "Snake.h"
 
-namespace ArkanoidGame
+
+namespace SnakeGame
 {
 	class Game;
 
@@ -25,8 +25,10 @@ namespace ArkanoidGame
 		sf::SoundBuffer gameOverSoundBuffer;
 
 		// Game data
-		Platform platform;
-		Ball ball;
+		Snake snake;
+		sf::Sprite apple;
+		std::vector<sf::Sprite> rocks;
+		int numEatenApples = 0;
 
 		// UI data
 		sf::Text scoreText;
@@ -34,6 +36,7 @@ namespace ArkanoidGame
 		sf::RectangleShape background;
 
 		// Sounds
+		sf::Sound eatAppleSound;
 		sf::Sound gameOverSound;
 	};
 }

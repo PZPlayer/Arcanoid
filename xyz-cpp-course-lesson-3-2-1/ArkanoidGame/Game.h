@@ -1,12 +1,13 @@
 #pragma once
 #include <SFML/Graphics.hpp>
 
+#include "Snake.h"
 #include "Sprite.h"
 #include "GameSettings.h"
 #include "GameState.h"
 #include <unordered_map>
 
-namespace ArkanoidGame
+namespace SnakeGame
 {
 	enum class GameOptions: std::uint8_t
 	{

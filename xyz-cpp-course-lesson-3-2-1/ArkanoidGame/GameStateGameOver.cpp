@@ -5,7 +5,7 @@
 #include <assert.h>
 #include <sstream>
 
-namespace ArkanoidGame
+namespace SnakeGame
 {
 	const char* PLAYER_NAME = "Player";
 
@@ -34,7 +34,7 @@ namespace ArkanoidGame
 			sortedRecordsTable.insert(std::make_pair(item.second, item.first));
 		}
 
-		bool isPlayerInTable = false;
+		bool isSnakeInTable = false;
 		auto it = sortedRecordsTable.rbegin();
 		for (int i = 0; i < MAX_RECORDS_TABLE_SIZE && it != sortedRecordsTable.rend(); ++i, ++it) // Note, we can do several actions in for action block
 		{
@@ -50,7 +50,7 @@ namespace ArkanoidGame
 			if (it->second == PLAYER_NAME)
 			{
 				text.setFillColor(sf::Color::Green);
-				isPlayerInTable = true;
+				isSnakeInTable = true;
 			}
 			else
 			{
@@ -58,13 +58,13 @@ namespace ArkanoidGame
 			}
 		}
 
-		// If player is not in table, replace last element with him
-		if (!isPlayerInTable)
+		// If snake is not in table, replace last element with him
+		if (!isSnakeInTable)
 		{
 			sf::Text& text = recordsTableTexts.back();
 			std::stringstream sstream;
-			int playerScores = game.GetRecordByPlayerId(PLAYER_NAME);
-			sstream << MAX_RECORDS_TABLE_SIZE << ". " << PLAYER_NAME << ": " << playerScores;
+			int snakeScores = game.GetRecordByPlayerId(PLAYER_NAME);
+			sstream << MAX_RECORDS_TABLE_SIZE << ". " << PLAYER_NAME << ": " << snakeScores;
 			text.setString(sstream.str());
 			text.setFillColor(sf::Color::Green);
 		}
