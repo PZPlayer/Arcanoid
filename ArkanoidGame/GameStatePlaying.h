@@ -1,22 +1,28 @@
 #pragma once
 #include "SFML/Graphics.hpp"
 #include "SFML/Audio.hpp"
-#include "Snake.h"
+#include "GameStateData.h"
+#include "Platform.h"
+#include "Ball.h"
 
-
-namespace SnakeGame
+namespace ArkanoidGame
 {
 	class Game;
+	class Block;
 
-	class GameStatePlayingData
+	class GameStatePlayingData : public GameStateData
 	{
 	public:
-		void Init();
-		void HandleWindowEvent(const sf::Event& event);
-		void Update(float timeDelta);
-		void Draw(sf::RenderWindow& window);
+		void Init() override;
+		void HandleWindowEvent(const sf::Event& event) override;
+		void Update(float timeDelta) override;
+		void Draw(sf::RenderWindow& window) override;
 
 	private:
+		void createBlocks();
+		void GetBallInverse(const sf::Vector2f& ballPos, const sf::FloatRect& blockRect, bool& needInverseDirX,
+			bool& needInverseDirY);
+
 		// Resources
 		sf::Texture appleTexture;
 		sf::Texture rockTexture;
@@ -25,10 +31,8 @@ namespace SnakeGame
 		sf::SoundBuffer gameOverSoundBuffer;
 
 		// Game data
-		Snake snake;
-		sf::Sprite apple;
-		std::vector<sf::Sprite> rocks;
-		int numEatenApples = 0;
+		std::vector<std::shared_ptr<GameObject>> gameObjects;
+		std::vector<std::shared_ptr<Block>> blocks;
 
 		// UI data
 		sf::Text scoreText;
@@ -36,7 +40,6 @@ namespace SnakeGame
 		sf::RectangleShape background;
 
 		// Sounds
-		sf::Sound eatAppleSound;
 		sf::Sound gameOverSound;
 	};
 }

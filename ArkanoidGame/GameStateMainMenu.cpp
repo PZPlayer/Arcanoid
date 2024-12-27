@@ -3,11 +3,11 @@
 #include "Game.h"
 #include <assert.h>
 
-namespace SnakeGame
+namespace ArkanoidGame
 {
 	void GameStateMainMenuData::Init()
 	{
-		assert(font.loadFromFile(RESOURCES_PATH + "Fonts/Roboto-Regular.ttf"));
+		assert(font.loadFromFile(SETTINGS.RESOURCES_PATH + "Fonts/Roboto-Regular.ttf"));
 
 		MenuItem startGame;
 		startGame.text.setString("Start Game");
@@ -94,7 +94,7 @@ namespace SnakeGame
 		exitGameItem.childrens.push_back(noItem);
 
 		MenuItem mainMenu;
-		mainMenu.hintText.setString("Snake Game");
+		mainMenu.hintText.setString("Arkanoid Game");
 		mainMenu.hintText.setFont(font);
 		mainMenu.hintText.setCharacterSize(48);
 		mainMenu.hintText.setFillColor(sf::Color::Red);

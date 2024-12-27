@@ -1,42 +1,25 @@
 #include "GameStatePlaying.h"
 #include "Application.h"
+#include "Block.h"
 #include "Game.h"
 #include "Text.h"
+#include "ThreeHitBlock.h"
+
 #include <assert.h>
 #include <sstream>
 
-namespace SnakeGame
+namespace ArkanoidGame
 {
 	void GameStatePlayingData::Init()
 	{	
 		// Init game resources (terminate if error)
-		snake.LoadTextures();
-		assert(appleTexture.loadFromFile(TEXTURES_PATH + "Apple.png"));
-		assert(rockTexture.loadFromFile(TEXTURES_PATH + "Rock.png"));
-		assert(font.loadFromFile(FONTS_PATH + "Roboto-Regular.ttf"));
-		assert(eatAppleSoundBuffer.loadFromFile(SOUNDS_PATH + "AppleEat.wav"));
-		assert(gameOverSoundBuffer.loadFromFile(SOUNDS_PATH + "Death.wav"));
+		assert(font.loadFromFile(SETTINGS.FONTS_PATH + "Roboto-Regular.ttf"));
+		assert(gameOverSoundBuffer.loadFromFile(SETTINGS.SOUNDS_PATH + "Death.wav"));
 
 		// Init background
-		background.setSize(sf::Vector2f(SCREEN_WIDTH, SCREEN_HEGHT));
+		background.setSize(sf::Vector2f(SETTINGS.SCREEN_WIDTH, SETTINGS.SCREEN_HEIGHT));
 		background.setPosition(0.f, 0.f);
-		background.setFillColor(sf::Color(0, 200, 0));
-
-		// Init snake
-		snake.Init();
-
-		// Init apple
-		InitSprite(apple, APPLE_SIZE, APPLE_SIZE, appleTexture);
-		SetSpriteRandomPosition(apple, background.getGlobalBounds(), snake.GetBody());
-
-		// Init rocks
-		rocks.resize(ROCKS_COUNT);
-		for (sf::Sprite& rock : rocks) {
-			InitSprite(rock, ROCK_SIZE, ROCK_SIZE, rockTexture);
-			SetSpriteRandomPosition(rock, background.getGlobalBounds(), snake.GetBody());
-		}
-
-		numEatenApples = 0;
+		background.setFillColor(sf::Color(0, 0, 0));
 
 		scoreText.setFont(font);
 		scoreText.setCharacterSize(24);
@@ -48,8 +31,11 @@ namespace SnakeGame
 		inputHintText.setString("Use arrow keys to move, ESC to pause");
 		inputHintText.setOrigin(GetTextOrigin(inputHintText, { 1.f, 0.f }));
 
+		gameObjects.emplace_back(std::make_shared<Platform>(sf::Vector2f({ SETTINGS.SCREEN_WIDTH / 2.f, SETTINGS.SCREEN_HEIGHT - SETTINGS.PLATFORM_HEIGHT / 2.f })));
+		gameObjects.emplace_back(std::make_shared<Ball>(sf::Vector2f({ SETTINGS.SCREEN_WIDTH / 2.f, SETTINGS.SCREEN_HEIGHT - SETTINGS.PLATFORM_HEIGHT - SETTINGS.BALL_SIZE / 2.f } )));
+		createBlocks();
+
 		// Init sounds
-		eatAppleSound.setBuffer(eatAppleSoundBuffer);
 		gameOverSound.setBuffer(gameOverSoundBuffer);
 	}
 
@@ -66,60 +52,55 @@ namespace SnakeGame
 
 	void GameStatePlayingData::Update(float timeDelta)
 	{
-		if (sf::Keyboard::isKeyPressed(sf::Keyboard::Up))
-		{
-			snake.SetDirection(SnakeDirection::Up);
+		static auto updateFunctor = [timeDelta](auto obj) { obj->Update(timeDelta); };
+
+		std::for_each(gameObjects.begin(), gameObjects.end(), updateFunctor);
+		std::for_each(blocks.begin(), blocks.end(), updateFunctor);
+
+
+		std::shared_ptr <Platform> platform = std::dynamic_pointer_cast<Platform>(gameObjects[0]);
+		std::shared_ptr<Ball> ball = std::dynamic_pointer_cast<Ball>(gameObjects[1]);
+
+		auto isCollision = platform->CheckCollision(ball);
+
+		bool needInverseDirX = false;
+		bool needInverseDirY = false;
+
+
+		bool hasBrokeOneBlock = false;
+		//remove-erase idiom
+		blocks.erase(
+			std::remove_if(blocks.begin(), blocks.end(),
+				[ball, &hasBrokeOneBlock, &needInverseDirX, &needInverseDirY, this](auto block) {
+					if ((!hasBrokeOneBlock) && block->CheckCollision(ball)) {
+						hasBrokeOneBlock = true;
+						const auto ballPos = ball->GetPosition();
+						const auto blockRect = block->GetRect();
+
+						GetBallInverse(ballPos, blockRect, needInverseDirX, needInverseDirY);
+					}
+					return block->IsBroken();
+				}),
+			blocks.end()
+					);
+		if (needInverseDirX) {
+			ball->InvertDirectionX();
 		}
-		else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Right))
-		{
-			snake.SetDirection(SnakeDirection::Right);
-		}
-		else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down))
-		{
-			snake.SetDirection(SnakeDirection::Down);
-		}
-		else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left))
-		{
-			snake.SetDirection(SnakeDirection::Left);
+		if (needInverseDirY) {
+			ball->InvertDirectionY();
 		}
 
-		// Update snake
-		snake.Move(timeDelta);
+		const bool isGameWin = blocks.size() == 0;
+		const bool isGameOver = !isCollision && ball->GetPosition().y > platform->GetRect().top;
+		Game& game = Application::Instance().GetGame();
 
-		if (CheckSpriteIntersection(*snake.GetHead(), apple)) {
-			eatAppleSound.play();
-
-			snake.Grow();
-
-			// Increase eaten apples counter
-			numEatenApples++;
-			
-			// Move apple to a new random position
-			SetSpriteRandomPosition(apple, background.getGlobalBounds(), snake.GetBody());
-
-			// Increase snake speed
-			if (Application::Instance().GetGame().IsEnableOptions(GameOptions::WithAcceleration)) {
-				snake.SetSpeed(snake.GetSpeed() + ACCELERATION);
-			}
+		if (isGameWin) {
+			game.PushState(GameStateType::GameWin, false);
 		}
-
-		const bool isGameFinished = numEatenApples == MAX_APPLES && !Application::Instance().GetGame().IsEnableOptions(GameOptions::InfiniteApples);
-		
-		if (isGameFinished
-			|| !snake.HasCollisionWithRect(background.getGlobalBounds()) // Check collision with screen border
-			|| snake.CheckCollisionWithHimself()		// Check collision with screen border
-			|| FullCheckCollisions(rocks.begin(), rocks.end(), *snake.GetHead())) // Check collision with rocks
-		{
+		else if (isGameOver) {
 			gameOverSound.play();
-			
-			Game& game = Application::Instance().GetGame();
-
-			// Find snake in records table and update his score
-			game.UpdateRecord(PLAYER_NAME, numEatenApples);
 			game.PushState(GameStateType::GameOver, false);
 		}
-
-		scoreText.setString("Apples eaten: " + std::to_string(numEatenApples));
 	}
 
 	void GameStatePlayingData::Draw(sf::RenderWindow& window)
@@ -127,12 +108,10 @@ namespace SnakeGame
 		// Draw background
 		window.draw(background);
 
-		// Draw snake
-		snake.Draw(window);
-		// Draw apples
-		DrawSprite(apple, window);
-		// Draw rocks
-		DrawSprites(rocks.begin(), rocks.end(), window);
+		static auto drawFunc = [&window](auto block) { block->Draw(window); };
+		// Draw game objects
+		std::for_each(gameObjects.begin(), gameObjects.end(), drawFunc);
+		std::for_each(blocks.begin(), blocks.end(), drawFunc);
 
 		scoreText.setOrigin(GetTextOrigin(scoreText, { 0.f, 0.f }));
 		scoreText.setPosition(10.f, 10.f);
@@ -141,5 +120,38 @@ namespace SnakeGame
 		sf::Vector2f viewSize = window.getView().getSize();
 		inputHintText.setPosition(viewSize.x - 10.f, 10.f);
 		window.draw(inputHintText);
+	}
+
+	void GameStatePlayingData::createBlocks() 
+	{
+		int row = 0;
+		for (; row < SETTINGS.BLOCKS_COUNT_ROWS; ++row) {
+			for (int col = 0; col < SETTINGS.BLOCKS_COUNT_IN_ROW; ++col) {
+				blocks.emplace_back(std::make_shared<SmoothDestroyableBlock>(sf::Vector2f({ SETTINGS.BLOCK_SHIFT + SETTINGS.BLOCK_WIDTH / 2.f + col * (SETTINGS.BLOCK_WIDTH + SETTINGS.BLOCK_SHIFT), 100.f + row * SETTINGS.BLOCK_HEIGHT })));
+			}
+		}
+
+		for (int col = 0; col < 3; ++col) {
+			blocks.emplace_back(std::make_shared<UnbreackableBlock>(sf::Vector2f({ SETTINGS.BLOCK_SHIFT + SETTINGS.BLOCK_WIDTH / 2.f + col * (SETTINGS.BLOCK_WIDTH + SETTINGS.BLOCK_SHIFT), 100.f + row * SETTINGS.BLOCK_HEIGHT })));
+		}
+		for (int col = 4; col < 7; ++col) {
+			blocks.emplace_back(std::make_shared<ThreeHitBlock>(sf::Vector2f({ SETTINGS.BLOCK_SHIFT + SETTINGS.BLOCK_WIDTH / 2.f + col * (SETTINGS.BLOCK_WIDTH + SETTINGS.BLOCK_SHIFT), 100.f + row * SETTINGS.BLOCK_HEIGHT })));
+		}
+	}
+
+	void GameStatePlayingData::GetBallInverse(const sf::Vector2f& ballPos, const sf::FloatRect& blockRect, bool& needInverseDirX, bool& needInverseDirY) {
+
+		if (ballPos.y > blockRect.top + blockRect.height)
+		{
+			needInverseDirY = true;
+		}
+		if (ballPos.x < blockRect.left)
+		{
+			needInverseDirX = true;
+		}
+		if (ballPos.x > blockRect.left + blockRect.width)
+		{
+			needInverseDirX = true;
+		}
 	}
 }

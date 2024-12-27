@@ -1,16 +1,16 @@
 #pragma once
 #include <SFML/Graphics.hpp>
+#include "GameStateData.h"
 
-
-namespace SnakeGame
+namespace ArkanoidGame
 {
-
 	enum class GameStateType
 	{
 		None = 0,
 		MainMenu,
 		Playing,
 		GameOver,
+		GameWin,
 		ExitDialog,
 		Records,
 	};
@@ -28,7 +28,7 @@ namespace SnakeGame
 		GameState& operator= (const GameState& state) = delete;
 		GameState& operator= (GameState&& state) noexcept {
 			type = state.type;
-			data = state.data;
+			data = std::move(state.data);
 			isExclusivelyVisible = state.isExclusivelyVisible;
 			state.data = nullptr;
 			return *this;
@@ -47,11 +47,8 @@ namespace SnakeGame
 		void HandleWindowEvent(sf::Event& event);
 
 	private:
-		void* CopyData(const GameState& state) const;
-
-	private:
 		GameStateType type = GameStateType::None;
-		void* data = nullptr;
+		std::unique_ptr<GameStateData> data = nullptr;
 		bool isExclusivelyVisible = false;
 	};
 

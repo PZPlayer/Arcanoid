@@ -37,13 +37,31 @@
     <ClCompile Include="Text.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
-    <ClCompile Include="Snake.cpp">
-      <Filter>Sources</Filter>
-    </ClCompile>
     <ClCompile Include="Application.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
     <ClCompile Include="GameState.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="Ball.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="Platform.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="GameObject.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="GameStateData.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="Block.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="GameStateGameWin.cpp">
+      <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="ThreeHitBlock.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
   </ItemGroup>
@@ -75,8 +93,21 @@
     <ClInclude Include="Vector.h" />
     <ClInclude Include="Sprite.h" />
     <ClInclude Include="Text.h" />
-    <ClInclude Include="Snake.h" />
     <ClInclude Include="Application.h" />
     <ClInclude Include="GameState.h" />
+    <ClInclude Include="Ball.h" />
+    <ClInclude Include="Platform.h" />
+    <ClInclude Include="GameObject.h" />
+    <ClInclude Include="GameStateData.h" />
+    <ClInclude Include="Block.h" />
+    <ClInclude Include="GameStateGameWin.h" />
+    <ClInclude Include="Collidable.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="randomizer.h">
+      <Filter>Sources</Filter>
+    </ClInclude>
+    <ClInclude Include="IDelayedAction.h" />
+    <ClInclude Include="ThreeHitBlock.h" />
   </ItemGroup>
 </Project>

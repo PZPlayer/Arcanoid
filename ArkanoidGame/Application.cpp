@@ -1,7 +1,7 @@
 #include "Application.h"
 #include <cstdlib>
 
-namespace SnakeGame
+namespace ArkanoidGame
 {
 	Application& Application::Instance()
 	{
@@ -10,7 +10,7 @@ namespace SnakeGame
 	}
 
 	Application::Application() :
-		window(sf::VideoMode(SCREEN_WIDTH, SCREEN_HEGHT), GAME_NAME)
+		window(sf::VideoMode(SETTINGS.SCREEN_WIDTH, SETTINGS.SCREEN_HEIGHT), SETTINGS.GAME_NAME)
 	{
 		// Init random number generator
 		unsigned int seed = (unsigned int)time(nullptr); // Get current time as seed. You can also use any other number to fix randomization
@@ -33,7 +33,7 @@ namespace SnakeGame
 				break;
 			}
 
-			if (game.Update(TIME_PER_FRAME))
+			if (game.Update(SETTINGS.TIME_PER_FRAME))
 			{
 				// Draw everything here
 				// Clear the window first
@@ -51,9 +51,9 @@ namespace SnakeGame
 
 			float endTime = gameClock.getElapsedTime().asSeconds();
 			float deltaTime = endTime - startTime;
-			if (deltaTime < TIME_PER_FRAME) {
+			if (deltaTime < SETTINGS.TIME_PER_FRAME) {
 				// Reduce framerate to not spam CPU and GPU
-				sf::sleep(sf::seconds(TIME_PER_FRAME - deltaTime));
+				sf::sleep(sf::seconds(SETTINGS.TIME_PER_FRAME - deltaTime));
 			}
 		}
 	}
