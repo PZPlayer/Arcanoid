@@ -4,6 +4,7 @@
 #include "Game.h"
 #include "Text.h"
 #include "ThreeHitBlock.h"
+#include "randomizer.h"
 
 #include <assert.h>
 #include <sstream>
@@ -15,6 +16,11 @@ namespace ArkanoidGame
 		// Init game resources (terminate if error)
 		assert(font.loadFromFile(SETTINGS.FONTS_PATH + "Roboto-Regular.ttf"));
 		assert(gameOverSoundBuffer.loadFromFile(SETTINGS.SOUNDS_PATH + "Death.wav"));
+
+		//factoriesInit
+		factories.emplace(BlockType::Simple, std::make_unique<SimpleBlockFactory>());
+		factories.emplace(BlockType::ThreeHit, std::make_unique<ThreeHitBlockFactory>());
+		factories.emplace(BlockType::Unbreackable, std::make_unique<UnbreackableBlockFactory>());
 
 		// Init background
 		background.setSize(sf::Vector2f(SETTINGS.SCREEN_WIDTH, SETTINGS.SCREEN_HEIGHT));
@@ -31,12 +37,50 @@ namespace ArkanoidGame
 		inputHintText.setString("Use arrow keys to move, ESC to pause");
 		inputHintText.setOrigin(GetTextOrigin(inputHintText, { 1.f, 0.f }));
 
-		gameObjects.emplace_back(std::make_shared<Platform>(sf::Vector2f({ SETTINGS.SCREEN_WIDTH / 2.f, SETTINGS.SCREEN_HEIGHT - SETTINGS.PLATFORM_HEIGHT / 2.f })));
-		gameObjects.emplace_back(std::make_shared<Ball>(sf::Vector2f({ SETTINGS.SCREEN_WIDTH / 2.f, SETTINGS.SCREEN_HEIGHT - SETTINGS.PLATFORM_HEIGHT - SETTINGS.BALL_SIZE / 2.f } )));
+		auto platform = std::make_shared<Platform>(sf::Vector2f({ SETTINGS.SCREEN_WIDTH / 2.f, SETTINGS.SCREEN_HEIGHT - SETTINGS.PLATFORM_HEIGHT / 2.f }));
+		gameObjects.emplace_back(platform);		auto ball = std::make_shared<Ball>(sf::Vector2f({ SETTINGS.SCREEN_WIDTH / 2.f, SETTINGS.SCREEN_HEIGHT - SETTINGS.PLATFORM_HEIGHT - SETTINGS.BALL_SIZE / 2.f }));
+		ball->AddObserver(weak_from_this());
+		gameObjects.emplace_back(ball);
+
 		createBlocks();
 
 		// Init sounds
 		gameOverSound.setBuffer(gameOverSoundBuffer);
+		bonusSound.setBuffer(bonusSoundBuffer);
+		bonuses.emplace(BonusType::BiggerPlatform, Bonus(
+			[wplatform = std::weak_ptr<Platform>(platform), &sound = bonusSound]() {
+			auto platform = wplatform.lock();
+			if (platform) {
+				sound.play();
+				platform->ChangeWidth(2);
+			}
+		},
+			[wplatform = std::weak_ptr<Platform>(platform)]() {
+			auto platform = wplatform.lock();
+			if (platform) {
+
+				platform->ChangeWidth(0.5);
+			}
+		},
+			SETTINGS.BONUS_DURATION
+			));
+
+		bonuses.emplace(BonusType::SlowBall, Bonus(
+			[wball = std::weak_ptr<Ball>(ball), &sound = bonusSound]() {
+			auto ball = wball.lock();
+			if (ball) {
+				sound.play();
+				ball->ChangeSpeed(0.5);
+			}
+		},
+			[wball = std::weak_ptr<Ball>(ball)]() {
+			auto ball = wball.lock();
+			if (ball) {
+				ball->ChangeSpeed(1);
+			}
+		},
+			SETTINGS.BONUS_DURATION
+			));
 	}
 
 	void GameStatePlayingData::HandleWindowEvent(const sf::Event& event)
@@ -45,7 +89,7 @@ namespace ArkanoidGame
 		{
 			if (event.key.code == sf::Keyboard::Escape)
 			{
-				Application::Instance().GetGame().PushState(GameStateType::ExitDialog, false);
+				Application::Instance().GetGame().PauseGame();
 			}
 		}
 	}
@@ -56,7 +100,9 @@ namespace ArkanoidGame
 
 		std::for_each(gameObjects.begin(), gameObjects.end(), updateFunctor);
 		std::for_each(blocks.begin(), blocks.end(), updateFunctor);
-
+		std::for_each(bonuses.begin(), bonuses.end(), [timeDelta](auto& bonusPair) {
+			bonusPair.second.Update(timeDelta);
+			});
 
 		std::shared_ptr <Platform> platform = std::dynamic_pointer_cast<Platform>(gameObjects[0]);
 		std::shared_ptr<Ball> ball = std::dynamic_pointer_cast<Ball>(gameObjects[1]);
@@ -89,18 +135,6 @@ namespace ArkanoidGame
 		if (needInverseDirY) {
 			ball->InvertDirectionY();
 		}
-
-		const bool isGameWin = blocks.size() == 0;
-		const bool isGameOver = !isCollision && ball->GetPosition().y > platform->GetRect().top;
-		Game& game = Application::Instance().GetGame();
-
-		if (isGameWin) {
-			game.PushState(GameStateType::GameWin, false);
-		}
-		else if (isGameOver) {
-			gameOverSound.play();
-			game.PushState(GameStateType::GameOver, false);
-		}
 	}
 
 	void GameStatePlayingData::Draw(sf::RenderWindow& window)
@@ -122,20 +156,55 @@ namespace ArkanoidGame
 		window.draw(inputHintText);
 	}
 
+	void GameStatePlayingData::LoadNextLevel()
+	{
+		if (currentLevel >= levelLoder.GetLevelCount() - 1) {
+			Game& game = Application::Instance().GetGame();
+
+			game.WinGame();
+		}
+		else
+		{
+			std::shared_ptr <Platform> platform = std::dynamic_pointer_cast<Platform>(gameObjects[0]);
+			std::shared_ptr<Ball> ball = std::dynamic_pointer_cast<Ball>(gameObjects[1]);
+			platform->restart();
+			ball->restart();
+
+			blocks.clear();
+			++currentLevel;
+			createBlocks();
+		}
+	}
+
 	void GameStatePlayingData::createBlocks() 
 	{
-		int row = 0;
-		for (; row < SETTINGS.BLOCKS_COUNT_ROWS; ++row) {
-			for (int col = 0; col < SETTINGS.BLOCKS_COUNT_IN_ROW; ++col) {
-				blocks.emplace_back(std::make_shared<SmoothDestroyableBlock>(sf::Vector2f({ SETTINGS.BLOCK_SHIFT + SETTINGS.BLOCK_WIDTH / 2.f + col * (SETTINGS.BLOCK_WIDTH + SETTINGS.BLOCK_SHIFT), 100.f + row * SETTINGS.BLOCK_HEIGHT })));
-			}
+		for (const auto& pair : factories)
+		{
+			pair.second->ClearCounter();
+		}
+		auto self = weak_from_this();
+
+		auto level = levelLoder.GetLevel(currentLevel);
+
+		for (auto pairPosBlockTYpe : level.m_blocks)
+		{
+			auto blockType = pairPosBlockTYpe.second;
+			sf::Vector2i pos = pairPosBlockTYpe.first;
+
+			sf::Vector2f position{
+				(float)(SETTINGS.BLOCK_SHIFT + SETTINGS.BLOCK_WIDTH / 2.f + pos.x * (SETTINGS.BLOCK_WIDTH + SETTINGS.BLOCK_SHIFT))
+				, (float)pos.y * SETTINGS.BLOCK_HEIGHT
+			};
+
+
+			blocks.emplace_back(factories.at(blockType)->CreateBlock(position));
+			blocks.back()->AddObserver(self);
 		}
 
-		for (int col = 0; col < 3; ++col) {
-			blocks.emplace_back(std::make_shared<UnbreackableBlock>(sf::Vector2f({ SETTINGS.BLOCK_SHIFT + SETTINGS.BLOCK_WIDTH / 2.f + col * (SETTINGS.BLOCK_WIDTH + SETTINGS.BLOCK_SHIFT), 100.f + row * SETTINGS.BLOCK_HEIGHT })));
-		}
-		for (int col = 4; col < 7; ++col) {
-			blocks.emplace_back(std::make_shared<ThreeHitBlock>(sf::Vector2f({ SETTINGS.BLOCK_SHIFT + SETTINGS.BLOCK_WIDTH / 2.f + col * (SETTINGS.BLOCK_WIDTH + SETTINGS.BLOCK_SHIFT), 100.f + row * SETTINGS.BLOCK_HEIGHT })));
+
+		for (const auto& pair : factories)
+		{
+			breackableBlocksCount += pair.second->GetcreatedBreackableBlocksCount();
 		}
 	}
 
@@ -152,6 +221,32 @@ namespace ArkanoidGame
 		if (ballPos.x > blockRect.left + blockRect.width)
 		{
 			needInverseDirX = true;
+		}
+	}
+
+	void GameStatePlayingData::Notify(std::shared_ptr<IObservable> observable)
+	{
+		if (auto block = std::dynamic_pointer_cast<Block>(observable); block) {
+			--breackableBlocksCount;
+			Game& game = Application::Instance().GetGame();
+			if (breackableBlocksCount == 0) {
+				game.LoadNextLevel();
+			}
+			else
+			{
+				auto percent = random<int>(0, 100);
+				if (SETTINGS.BONUS_PROPABILITY_PERCENT >= percent) {
+					BonusType bonusType = (BonusType)(random<int>(0, (int)BonusType::Count - 1));
+					bonuses.at(bonusType).Activate();
+				}
+			}
+		}
+		else if (auto ball = std::dynamic_pointer_cast<Ball>(observable); ball)
+		{
+			if (ball->GetPosition().y > gameObjects.front()->GetRect().top) {
+				gameOverSound.play();
+				Application::Instance().GetGame().LooseGame();
+			}
 		}
 	}
 }

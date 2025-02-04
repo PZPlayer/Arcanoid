@@ -20,6 +20,7 @@ namespace ArkanoidGame
 		const std::string TEXTURES_PATH = RESOURCES_PATH + "Textures/";
 		const std::string FONTS_PATH = RESOURCES_PATH + "Fonts/";
 		const std::string SOUNDS_PATH = RESOURCES_PATH + "Sounds/";
+		const std::string LEVELS_CONFIG_PATH = RESOURCES_PATH + "levels.config";
 
 		// Game settings constants
 		const float ACCELERATION = 10.f;
@@ -46,6 +47,8 @@ namespace ArkanoidGame
 
 		const std::string GAME_NAME = "ArkanoidGame";
 		const float BREAK_DELAY = 1.f;
+		const float BONUS_DURATION = 30.f;
+		const int BONUS_PROPABILITY_PERCENT = 5;
 	};
 }
 
